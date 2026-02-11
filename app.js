@@ -4,6 +4,7 @@ const $ = (sel, root = document) => root.querySelector(sel);
 
 const state = {
   units: "metric", // metric | imperial
+  theme: "auto", // auto | light | dark
   location: null, // { name, admin1, country, latitude, longitude, timezone? }
   forecast: null, // api payload
   aborter: null,
@@ -16,6 +17,7 @@ const ui = {
   subtitle: $("#subtitle"),
   userCount: $("#userCount"),
   btnGeo: $("#btnGeo"),
+  btnTheme: $("#btnTheme"),
   btnUnits: $("#btnUnits"),
   btnRefresh: $("#btnRefresh"),
   cityInput: $("#cityInput"),
@@ -137,6 +139,7 @@ function loadPrefs() {
     if (!raw) return;
     const data = JSON.parse(raw);
     if (data?.units === "metric" || data?.units === "imperial") state.units = data.units;
+    if (data?.theme === "auto" || data?.theme === "light" || data?.theme === "dark") state.theme = data.theme;
     if (data?.location && typeof data.location === "object") state.location = data.location;
   } catch {
     // ignore
@@ -151,10 +154,98 @@ function savePrefs(extra = {}) {
     const payload = {
       ...base,
       units: state.units,
+      theme: state.theme,
       location: state.location,
       ...extra,
     };
     localStorage.setItem(storageKey, JSON.stringify(payload));
+  } catch {
+    // ignore
+  }
+}
+
+const themeVars = ["--bg", "--fg", "--muted", "--card", "--card-2", "--border", "--shadow", "--accent", "--accent-2", "--danger"];
+
+function clearInlineThemeVars() {
+  const root = document.documentElement;
+  for (const k of themeVars) root.style.removeProperty(k);
+}
+
+function getSystemTheme() {
+  const tg = getTelegram();
+  const scheme = tg?.colorScheme;
+  if (scheme === "light" || scheme === "dark") return scheme;
+
+  try {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+function getEffectiveTheme() {
+  if (state.theme === "light" || state.theme === "dark") return state.theme;
+  return getSystemTheme();
+}
+
+function syncThemeButton() {
+  if (!ui.btnTheme) return;
+
+  const effective = getEffectiveTheme();
+  const next = effective === "dark" ? "light" : "dark";
+  const glyph = next === "light" ? "☀" : "☾";
+  const title = next === "light" ? "Включить светлую тему" : "Включить тёмную тему";
+
+  const span = ui.btnTheme.querySelector("span");
+  if (span) span.textContent = glyph;
+  ui.btnTheme.title = title;
+  ui.btnTheme.setAttribute("aria-label", title);
+  ui.btnTheme.setAttribute("aria-pressed", String(effective === "dark"));
+}
+
+function applyTheme() {
+  const root = document.documentElement;
+
+  if (state.theme === "light" || state.theme === "dark") {
+    root.dataset.theme = state.theme;
+    clearInlineThemeVars();
+  } else {
+    delete root.dataset.theme;
+  }
+
+  try {
+    root.style.colorScheme = getEffectiveTheme();
+  } catch {
+    // ignore
+  }
+
+  syncThemeButton();
+}
+
+function toggleTheme() {
+  const effective = getEffectiveTheme();
+  state.theme = effective === "dark" ? "light" : "dark";
+  savePrefs();
+  applyTheme();
+  syncTelegramMainButton();
+
+  try {
+    getTelegram()?.HapticFeedback?.impactOccurred?.("light");
+  } catch {
+    // ignore
+  }
+}
+
+function initTheme() {
+  applyTheme();
+
+  // Keep the icon in sync in browsers (auto mode only).
+  try {
+    const mql = window.matchMedia?.("(prefers-color-scheme: light)");
+    if (!mql) return;
+    const onChange = () => state.theme === "auto" && applyTheme();
+    if (typeof mql.addEventListener === "function") mql.addEventListener("change", onChange);
+    else if (typeof mql.addListener === "function") mql.addListener(onChange);
   } catch {
     // ignore
   }
@@ -1700,6 +1791,7 @@ function tgIsVersionAtLeast(tg, minVersion) {
 }
 
 function applyTelegramTheme(tg) {
+  if (state.theme !== "auto") return;
   const p = tg?.themeParams || {};
   const root = document.documentElement;
 
@@ -1818,6 +1910,7 @@ function initTelegram() {
   applyTelegramTheme(tg);
   tg.onEvent?.("themeChanged", () => {
     applyTelegramTheme(tg);
+    applyTheme();
     syncTelegramMainButton();
   });
 
@@ -1837,12 +1930,14 @@ function initTelegram() {
 
 function init() {
   loadPrefs();
+  initTheme();
   initTelegram();
   syncTelegramBackButton();
   syncUserCount();
 
   ui.btnUnits.addEventListener("click", toggleUnits);
   ui.btnGeo.addEventListener("click", useGeolocation);
+  ui.btnTheme?.addEventListener("click", toggleTheme);
   ui.btnRefresh.addEventListener("click", () => state.location && loadForecast(state.location, { reason: "refresh" }));
   ui.btnClear.addEventListener("click", () => {
     ui.cityInput.value = "";

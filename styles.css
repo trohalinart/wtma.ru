@@ -9,6 +9,9 @@
   --accent: #6ee7ff;
   --accent-2: #a78bfa;
   --danger: #ff5c7a;
+  --placeholder: rgba(234, 240, 255, 0.55);
+  --sheet-bg: rgba(20, 26, 44, 0.78);
+  --sheet-handle: rgba(255, 255, 255, 0.28);
 
   --bg-c1: rgba(110, 231, 255, 0.22);
   --bg-c2: rgba(167, 139, 250, 0.20);
@@ -30,7 +33,7 @@
 }
 
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #f7f9ff;
     --fg: #0b1020;
     --muted: rgba(11, 16, 32, 0.65);
@@ -41,7 +44,26 @@
     --accent: #0369a1;
     --accent-2: #6d28d9;
     --danger: #e11d48;
+    --placeholder: rgba(11, 16, 32, 0.48);
+    --sheet-bg: rgba(255, 255, 255, 0.88);
+    --sheet-handle: rgba(11, 16, 32, 0.22);
   }
+}
+
+:root[data-theme="light"] {
+  --bg: #f7f9ff;
+  --fg: #0b1020;
+  --muted: rgba(11, 16, 32, 0.65);
+  --card: rgba(255, 255, 255, 0.78);
+  --card-2: rgba(255, 255, 255, 0.92);
+  --border: rgba(11, 16, 32, 0.10);
+  --shadow: 0 18px 44px rgba(11, 16, 32, 0.10);
+  --accent: #0369a1;
+  --accent-2: #6d28d9;
+  --danger: #e11d48;
+  --placeholder: rgba(11, 16, 32, 0.48);
+  --sheet-bg: rgba(255, 255, 255, 0.88);
+  --sheet-handle: rgba(11, 16, 32, 0.22);
 }
 
 * {
@@ -198,8 +220,13 @@ body {
   padding: 0;
 }
 
+.btn--theme {
+  font-size: 18px;
+  line-height: 1;
+}
+
 .btn--pill {
-  min-width: 56px;
+  min-width: auto;
   font-weight: 700;
 }
 
@@ -230,8 +257,49 @@ body {
   width: 20px;
   height: 20px;
   display: block;
-  color: var(--muted);
-  opacity: 1;
+  opacity: 0.72;
+  background: url("./images/search.svg") no-repeat center / contain;
+  filter: invert(1);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .searchbox__icon {
+    opacity: 0.65;
+    filter: none;
+  }
+}
+
+:root[data-theme="light"] .searchbox__icon {
+  opacity: 0.65;
+  filter: none;
+}
+
+@supports ((-webkit-mask-image: url("")) or (mask-image: url(""))) {
+  .searchbox__icon {
+    color: var(--muted);
+    opacity: 1;
+    background: none;
+    filter: none;
+    background-color: currentColor;
+    -webkit-mask-image: url("./images/search.svg");
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    -webkit-mask-size: contain;
+    mask-image: url("./images/search.svg");
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme]) .searchbox__icon {
+      opacity: 1;
+    }
+  }
+
+  :root[data-theme="light"] .searchbox__icon {
+    opacity: 1;
+  }
 }
 
 .searchbox input {
@@ -245,13 +313,7 @@ body {
 }
 
 .searchbox input::placeholder {
-  color: rgba(234, 240, 255, 0.55);
-}
-
-@media (prefers-color-scheme: light) {
-  .searchbox input::placeholder {
-    color: rgba(11, 16, 32, 0.48);
-  }
+  color: var(--placeholder);
 }
 
 .searchbox__clear {
@@ -625,7 +687,7 @@ body {
 .forecast {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: clamp(220px, 82vw, 320px);
+  grid-auto-columns: clamp(10px, 82vw, 130px);
   gap: var(--gap);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -643,9 +705,8 @@ body {
 .card {
   scroll-snap-align: start;
   border: 1px solid var(--border);
-  background: var(--card);
+  background: linear-gradient(135deg, rgba(110, 231, 255, 0.10), rgba(167, 139, 250, 0.08));
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
   padding: 10px;
   display: grid;
   gap: 8px;
@@ -653,6 +714,7 @@ body {
   min-width: 0;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  
 }
 
 .card:hover {
@@ -664,6 +726,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  justify-content: space-evenly ;
 }
 
 .card__head > div {
@@ -760,6 +823,7 @@ body {
   display: flex;
   align-items: baseline;
   gap: 6px;
+  justify-content: center;
 }
 
 .card__tmax {
@@ -778,6 +842,7 @@ body {
   flex-wrap: wrap;
   color: var(--muted);
   font-size: 12px;
+  justify-content: center;
 }
 
 .card__meta .pill {
@@ -811,8 +876,8 @@ body {
   max-width: 960px;
   max-height: 85vh;
   max-height: 85dvh;
-  background: rgba(20, 26, 44, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--sheet-bg);
+  border: 1px solid var(--border);
   border-bottom: 0;
   border-top-left-radius: 22px;
   border-top-right-radius: 22px;
@@ -825,12 +890,6 @@ body {
   overflow: hidden;
 }
 
-@media (prefers-color-scheme: light) {
-  .sheet {
-    background: rgba(255, 255, 255, 0.88);
-  }
-}
-
 .sheet--open {
   transform: translateY(0);
 }
@@ -839,7 +898,7 @@ body {
   width: 46px;
   height: 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.28);
+  background: var(--sheet-handle);
   margin: 10px auto 2px;
 }
 
@@ -979,10 +1038,15 @@ body {
   --bg-c1: rgba(56, 189, 248, 0.16);
   --bg-c2: rgba(99, 102, 241, 0.16);
   --bg-c3: rgba(34, 197, 94, 0.05);
-  --bg-fx: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0) 0 10px, rgba(255, 255, 255, 0.22) 10px 12px);
-  --bg-fx-opacity: 0.35;
-  --bg-fx-size: 18px 18px;
-  --bg-fx-anim: wx-rain 1.05s linear infinite;
+  --bg-fx: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0) 0 70%,
+    rgba(255, 255, 255, 0.16) 70% 78%,
+    rgba(255, 255, 255, 0) 78% 100%
+  );
+  --bg-fx-opacity: 0.22;
+  --bg-fx-size: 44px 44px;
+  --bg-fx-anim: wx-rain 2.25s linear infinite;
 }
 
 :root[data-wx="snow"] {
@@ -1003,10 +1067,15 @@ body {
   --bg-c1: rgba(56, 189, 248, 0.12);
   --bg-c2: rgba(139, 92, 246, 0.16);
   --bg-c3: rgba(34, 197, 94, 0.04);
-  --bg-fx: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0) 0 12px, rgba(255, 255, 255, 0.18) 12px 14px);
-  --bg-fx-opacity: 0.28;
-  --bg-fx-size: 22px 22px;
-  --bg-fx-anim: wx-rain 1.15s linear infinite;
+  --bg-fx: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0) 0 68%,
+    rgba(255, 255, 255, 0.14) 68% 76%,
+    rgba(255, 255, 255, 0) 76% 100%
+  );
+  --bg-fx-opacity: 0.18;
+  --bg-fx-size: 52px 52px;
+  --bg-fx-anim: wx-thunder 2.45s linear infinite;
 }
 
 @keyframes wx-rain {
@@ -1014,7 +1083,16 @@ body {
     background-position: 0 0;
   }
   to {
-    background-position: 0 160px;
+    background-position: -88px 220px;
+  }
+}
+
+@keyframes wx-thunder {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -104px 260px;
   }
 }
 
