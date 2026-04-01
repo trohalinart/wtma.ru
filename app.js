@@ -379,6 +379,9 @@ let lastWxPhase = null;
 let bgFadeTimer = null;
 let currentClockTimeout = null;
 let currentClockInterval = null;
+const bgPerf = {
+  lite: false,
+};
 const bgMotion = {
   raf: 0,
   resetTimer: 0,
@@ -556,6 +559,43 @@ function isWetWeatherScene(scene) {
   return scene === "rain" || scene === "thunder";
 }
 
+function detectBackgroundPerformanceLiteMode() {
+  let coarsePointer = false;
+  let hoverNone = false;
+  let narrowViewport = false;
+  let saveData = false;
+
+  try {
+    coarsePointer = Boolean(window.matchMedia?.("(pointer: coarse)")?.matches);
+  } catch {
+    coarsePointer = false;
+  }
+
+  try {
+    hoverNone = Boolean(window.matchMedia?.("(hover: none)")?.matches);
+  } catch {
+    hoverNone = false;
+  }
+
+  try {
+    narrowViewport = Math.max(window.innerWidth || 0, 0) <= 820;
+  } catch {
+    narrowViewport = false;
+  }
+
+  try {
+    saveData = navigator?.connection?.saveData === true;
+  } catch {
+    saveData = false;
+  }
+
+  return saveData || (coarsePointer && (hoverNone || narrowViewport));
+}
+
+function backgroundRainDropCount() {
+  return bgPerf.lite ? 14 : 44;
+}
+
 function rainPattern(seed, factor = 1, offset = 0) {
   const raw = Math.sin(seed * factor + offset) * 43758.5453123;
   return raw - Math.floor(raw);
@@ -578,9 +618,12 @@ function buildBackgroundRainMarkup(count = 44) {
 }
 
 function ensureRainEffects() {
-  if (!ui.bgRain || ui.bgRain.dataset.ready === "1") return;
-  ui.bgRain.innerHTML = buildBackgroundRainMarkup();
+  if (!ui.bgRain) return;
+  const count = backgroundRainDropCount();
+  if (ui.bgRain.dataset.ready === "1" && Number(ui.bgRain.dataset.count) === count) return;
+  ui.bgRain.innerHTML = buildBackgroundRainMarkup(count);
   ui.bgRain.dataset.ready = "1";
+  ui.bgRain.dataset.count = String(count);
 }
 
 function syncRainEffects(scene) {
@@ -725,6 +768,9 @@ function applyBackgroundMotionPreference(mql) {
 
 function initBackgroundInteraction() {
   if (!ui.bg) return;
+  bgPerf.lite = detectBackgroundPerformanceLiteMode();
+  document.documentElement.dataset.bgPerf = bgPerf.lite ? "lite" : "full";
+  ui.bg.dataset.performance = bgPerf.lite ? "lite" : "full";
   bgMotion.reduceMotion = true;
   if (bgMotion.raf) {
     cancelAnimationFrame(bgMotion.raf);
@@ -740,6 +786,20 @@ function initBackgroundInteraction() {
   bgMotion.currentY = 0.28;
   ui.bg.dataset.motion = "static";
   writeBackgroundMotion(bgMotion.currentX, bgMotion.currentY);
+  ensureRainEffects();
+
+  const syncBgPerformance = () => {
+    const nextLite = detectBackgroundPerformanceLiteMode();
+    if (nextLite === bgPerf.lite) return;
+    bgPerf.lite = nextLite;
+    document.documentElement.dataset.bgPerf = bgPerf.lite ? "lite" : "full";
+    ui.bg.dataset.performance = bgPerf.lite ? "lite" : "full";
+    ui.bg.classList.remove("bg--fade");
+    ensureRainEffects();
+  };
+
+  window.addEventListener("resize", syncBgPerformance, { passive: true });
+  window.visualViewport?.addEventListener("resize", syncBgPerformance, { passive: true });
 }
 
 function setWxScene(scene, { bright = false, phase = "night" } = {}) {
@@ -776,8 +836,12 @@ function setWxScene(scene, { bright = false, phase = "night" } = {}) {
     else delete ui.bg.dataset.wxBright;
     ui.bg.dataset.phase = nextPhase;
     if (bgFadeTimer) window.clearTimeout(bgFadeTimer);
-    ui.bg.classList.add("bg--fade");
-    bgFadeTimer = window.setTimeout(() => ui.bg && ui.bg.classList.remove("bg--fade"), 240);
+    if (bgPerf.lite) {
+      ui.bg.classList.remove("bg--fade");
+    } else {
+      ui.bg.classList.add("bg--fade");
+      bgFadeTimer = window.setTimeout(() => ui.bg && ui.bg.classList.remove("bg--fade"), 240);
+    }
   }
   syncRainEffects(scene);
 }
