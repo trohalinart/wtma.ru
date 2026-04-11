@@ -247,20 +247,6 @@ function applyTheme() {
   syncThemeButton();
 }
 
-function toggleTheme() {
-  const effective = getEffectiveTheme();
-  state.theme = effective === "dark" ? "light" : "dark";
-  savePrefs();
-  applyTheme();
-  syncTelegramMainButton();
-
-  try {
-    getTelegram()?.HapticFeedback?.impactOccurred?.("light");
-  } catch {
-    // ignore
-  }
-}
-
 function initTheme() {
   applyTheme();
 }
@@ -671,101 +657,6 @@ function writeBackgroundMotion(x, y) {
   root.style.setProperty("--bg-shift-y", `${shiftY}px`);
 }
 
-function stepBackgroundMotion() {
-  bgMotion.raf = 0;
-
-  const dx = bgMotion.targetX - bgMotion.currentX;
-  const dy = bgMotion.targetY - bgMotion.currentY;
-  const ease = bgMotion.reduceMotion ? 1 : 0.14;
-
-  bgMotion.currentX += dx * ease;
-  bgMotion.currentY += dy * ease;
-  writeBackgroundMotion(bgMotion.currentX, bgMotion.currentY);
-
-  if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
-    bgMotion.raf = requestAnimationFrame(stepBackgroundMotion);
-  }
-}
-
-function queueBackgroundMotion() {
-  if (!bgMotion.raf) bgMotion.raf = requestAnimationFrame(stepBackgroundMotion);
-}
-
-function resetBackgroundMotion({ immediate = false } = {}) {
-  bgMotion.targetX = 0.5;
-  bgMotion.targetY = 0.28;
-
-  if (bgMotion.resetTimer) {
-    window.clearTimeout(bgMotion.resetTimer);
-    bgMotion.resetTimer = 0;
-  }
-
-  if (immediate || bgMotion.reduceMotion) {
-    if (bgMotion.raf) {
-      cancelAnimationFrame(bgMotion.raf);
-      bgMotion.raf = 0;
-    }
-    bgMotion.currentX = bgMotion.targetX;
-    bgMotion.currentY = bgMotion.targetY;
-    writeBackgroundMotion(bgMotion.currentX, bgMotion.currentY);
-    return;
-  }
-
-  queueBackgroundMotion();
-}
-
-function setBackgroundMotionFromPoint(clientX, clientY, { immediate = false } = {}) {
-  const width = Math.max(window.innerWidth || 0, 1);
-  const height = Math.max(viewportHeightPx() || window.innerHeight || 0, 1);
-
-  bgMotion.targetX = clamp(clientX / width, 0, 1);
-  bgMotion.targetY = clamp(clientY / height, 0, 1);
-
-  if (bgMotion.resetTimer) {
-    window.clearTimeout(bgMotion.resetTimer);
-    bgMotion.resetTimer = 0;
-  }
-
-  if (immediate || bgMotion.reduceMotion) {
-    if (bgMotion.raf) {
-      cancelAnimationFrame(bgMotion.raf);
-      bgMotion.raf = 0;
-    }
-    bgMotion.currentX = bgMotion.targetX;
-    bgMotion.currentY = bgMotion.targetY;
-    writeBackgroundMotion(bgMotion.currentX, bgMotion.currentY);
-    return;
-  }
-
-  queueBackgroundMotion();
-}
-
-function scheduleBackgroundMotionReset(delay = 180) {
-  if (bgMotion.resetTimer) window.clearTimeout(bgMotion.resetTimer);
-  bgMotion.resetTimer = window.setTimeout(() => {
-    bgMotion.resetTimer = 0;
-    resetBackgroundMotion();
-  }, delay);
-}
-
-function onBackgroundPointerMove(event) {
-  if (bgMotion.reduceMotion || event?.pointerType === "touch") return;
-  setBackgroundMotionFromPoint(event.clientX, event.clientY);
-}
-
-function onBackgroundTouchMove(event) {
-  if (bgMotion.reduceMotion) return;
-  const touch = event.touches?.[0];
-  if (!touch) return;
-  setBackgroundMotionFromPoint(touch.clientX, touch.clientY);
-}
-
-function applyBackgroundMotionPreference(mql) {
-  bgMotion.reduceMotion = Boolean(mql?.matches);
-  if (ui.bg) ui.bg.dataset.motion = bgMotion.reduceMotion ? "reduced" : "interactive";
-  resetBackgroundMotion({ immediate: true });
-}
-
 function initBackgroundInteraction() {
   if (!ui.bg) return;
   bgPerf.lite = detectBackgroundPerformanceLiteMode();
@@ -1026,13 +917,21 @@ function iconSvgMarkup(body, label, { className = "wx-icon" } = {}) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" class="${className}" ${aria} focusable="false">${body}</svg>`;
 }
 
+const weatherIconShapes = {
+  cloudCompact: `M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7`,
+};
+
+const weatherIconMasks = {
+  cloudCompact: `<circle cx="7.7" cy="13.4" r="3.9" fill="black" /><circle cx="13.2" cy="10.4" r="4.6" fill="black" /><circle cx="18.7" cy="13.6" r="3.4" fill="black" /><rect x="5.6" y="11.8" width="14.8" height="6.8" fill="black" />`,
+};
+
 const weatherIconPaths = {
   sun: `<circle cx="12" cy="12" r="4" /><path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7" />`,
   moon: `<path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454l0 .008" /><path d="M17 4a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2" /><path d="M19 11h2m-1 -1v2" />`,
   cloud: `<path d="M6.657 18c-2.572 0 -4.657 -2.007 -4.657 -4.483c0 -2.475 2.085 -4.482 4.657 -4.482c.393 -1.762 1.794 -3.2 3.675 -3.773c1.88 -.572 3.956 -.193 5.444 1c1.488 1.19 2.162 3.007 1.77 4.769h.99c1.913 0 3.464 1.56 3.464 3.486c0 1.927 -1.551 3.487 -3.465 3.487h-11.878" />`,
-  cloudCompact: `<path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7" />`,
-  cloudRain: `<path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7" /><path d="M11 13v2m0 3v2m4 -5v2m0 3v2" />`,
-  cloudSnow: `<path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7" /><path d="M11 15v.01m0 3v.01m0 3v.01m4 -4v.01m0 3v.01" />`,
+  cloudCompact: `<path d="${weatherIconShapes.cloudCompact}" />`,
+  cloudRain: `<path d="${weatherIconShapes.cloudCompact}" /><path d="M11 13v2m0 3v2m4 -5v2m0 3v2" />`,
+  cloudSnow: `<path d="${weatherIconShapes.cloudCompact}" /><path d="M11 15v.01m0 3v.01m0 3v.01m4 -4v.01m0 3v.01" />`,
   cloudBolt: `<path d="M13 18.004h-6.343c-2.572 -.004 -4.657 -2.011 -4.657 -4.487c0 -2.475 2.085 -4.482 4.657 -4.482c.393 -1.762 1.794 -3.2 3.675 -3.773c1.88 -.572 3.956 -.193 5.444 1c1.488 1.19 2.162 3.007 1.77 4.769h.99c1.396 0 2.6 .831 3.148 2.03" /><path d="M19 16l-2 3h4l-2 3" />`,
   mist: `<path d="M5 5h3m4 0h9" /><path d="M3 10h11m4 0h1" /><path d="M5 15h5m4 0h7" /><path d="M3 20h9m4 0h3" />`,
   wind: `<path d="M5 8h8.5a2.5 2.5 0 1 0 -2.34 -3.24" /><path d="M3 12h15.5a2.5 2.5 0 1 1 -2.34 3.24" /><path d="M4 16h5.5a2.5 2.5 0 1 1 -2.34 3.24" />`,
@@ -1045,38 +944,36 @@ function iconTabler(name, label, { className = "wx-icon" } = {}) {
   return iconSvgMarkup(weatherIconPaths[name] || weatherIconPaths.cloud, label, { className });
 }
 
-function iconSunLegacy() {
-  return iconSun();
+let weatherIconMaskCounter = 0;
+
+function nextWeatherIconMaskId(prefix = "wx-cloud-mask") {
+  weatherIconMaskCounter += 1;
+  return `${prefix}-${weatherIconMaskCounter}`;
 }
 
-function iconCloudLegacy() {
-  return iconCloud();
-}
-
-function iconPartlyCloudyLegacy() {
-  return iconPartlyCloudy();
+function celestialBehindCloudMarkup(celestialBody, transform, cloudMarkup) {
+  const maskId = nextWeatherIconMaskId();
+  return [
+    `<defs>`,
+    `<mask id="${maskId}" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">`,
+    `<rect x="-2" y="-2" width="28" height="28" fill="white" />`,
+    weatherIconMasks.cloudCompact,
+    `</mask>`,
+    `</defs>`,
+    `<g transform="${transform}" mask="url(#${maskId})">${celestialBody}</g>`,
+    cloudMarkup,
+  ].join("");
 }
 
 function iconPartlyCloudySvg() {
   return iconSvgMarkup(
-    `<g transform="translate(-1.8 -1.8) scale(.72)">${weatherIconPaths.sun}</g>${weatherIconPaths.cloudCompact}`,
+    `<path d="M7.657 18.9999C5.085 18.9999 3 16.9929 3 14.5169C3 12.0419 5.085 10.0349 7.657 10.0349C8.05 8.27288 9.451 6.83488 11.332 6.26188C13.212 5.68988 15.288 6.06888 16.776 7.26188C18.264 8.45188 18.938 10.26888 18.546 12.0309H19.536C21.449 12.0309 23 13.5909 23 15.5169C23 17.4439 21.449 19.0039 19.535 19.0039H7.657" stroke="currentColor" stroke-width="1.5" fill="none" /><path d="M11.4632 5.49392C11.1601 4.9549 10.7362 4.49349 10.2248 4.14593C9.71328 3.79836 9.1282 3.57412 8.51545 3.49081C7.90271 3.4075 7.27899 3.46739 6.69329 3.66578C6.1076 3.86417 5.57587 4.19565 5.13989 4.63419C4.7039 5.07273 4.37553 5.60638 4.18057 6.19322C3.9856 6.78007 3.92936 7.40412 4.01624 8.01637C4.10313 8.62862 4.33079 9.21239 4.68133 9.72182C5.03187 10.2312 5.49575 10.6525 6.03653 10.9524L6.67312 9.80456C6.30979 9.60305 5.99812 9.32005 5.76261 8.97778C5.52709 8.63551 5.37414 8.2433 5.31576 7.83195C5.25738 7.4206 5.29517 7.00132 5.42616 6.60704C5.55715 6.21276 5.77778 5.85422 6.0707 5.55958C6.36362 5.26494 6.72087 5.04223 7.11438 4.90894C7.50789 4.77565 7.92694 4.73541 8.33862 4.79138C8.75031 4.84736 9.14341 4.99802 9.48704 5.23153C9.83068 5.46505 10.1155 5.77505 10.3191 6.1372L11.4632 5.49392Z" fill="currentColor" stroke="none" /><rect x="2.28906" y="3.02612" width="0.991291" height="1.53169" rx="0.495645" transform="rotate(-42.12 2.28906 3.02612)" fill="currentColor" stroke="none" /><rect x="6.59375" y="1.07202" width="0.973978" height="1.50676" rx="0.486989" transform="rotate(-4.23912 6.59375 1.07202)" fill="currentColor" stroke="none" /><rect x="12" y="2" width="0.991291" height="1.51039" rx="0.495645" transform="rotate(41.4025 12 2)" fill="currentColor" stroke="none" /><rect x="1" y="7.67529" width="0.991291" height="1.53169" rx="0.495645" transform="rotate(-89.2415 1 7.67529)" fill="currentColor" stroke="none" /><rect x="2.08594" y="11.4473" width="0.991291" height="1.45404" rx="0.495645" transform="rotate(-123.392 2.08594 11.4473)" fill="currentColor" stroke="none" />`,
     "Переменная облачность",
   );
 }
 
 function iconPartlyCloudyNightSvg() {
-  return iconSvgMarkup(
-    `<g transform="translate(-1.3 -1.4) scale(.72)">${weatherIconPaths.moon}</g>${weatherIconPaths.cloudCompact}`,
-    "Переменная облачность ночью",
-  );
-}
-
-function iconRainLegacy() {
-  return iconRain();
-}
-
-function iconSnowLegacy() {
-  return iconSnow();
+  return `<img src="images/cloud_path_night.svg" alt="Переменная облачность ночью" class="wx-icon" />`;
 }
 
 function iconSun() {
@@ -2330,7 +2227,6 @@ function init() {
   loadPrefs();
   initTheme();
   initBackgroundInteraction();
-  ensureRainEffects();
   initTelegram();
   syncTelegramBackButton();
   syncUserCount();
