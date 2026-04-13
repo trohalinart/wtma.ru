@@ -1009,10 +1009,7 @@ function iconRain() {
 }
 
 function iconSunshower() {
-  return iconSvgMarkup(
-    `<g transform="translate(-1.8 -1.8) scale(.72)">${weatherIconPaths.sun}</g>${weatherIconPaths.cloudRain}`,
-    "Ливень с солнцем",
-  );
+  return `<img src="images/sun_shower_new.svg" alt="Ливень с солнцем" class="wx-icon" />`;
 }
 
 function iconSnow() {
